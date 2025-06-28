@@ -1,7 +1,8 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Ubicación en Mapa</title>
   <style>
     body {
@@ -30,9 +31,26 @@
 
   <script>
     const apiKey = "AIzaSyA3xxcUJemA2HcEOSFfP3E0RQXSUf59zmI";
+    let deviceId = "Desconocido";
     let map, marker;
 
-    function initMap(lat = 0, lng = 0) {
+    // Al cargar la página, solicitar ID y comenzar envío automático
+    window.onload = () => {
+      let nombre = "";
+      while (!nombre || nombre.trim() === "") {
+        nombre = prompt("Ingresa tu nombre o ID del dispositivo (obligatorio):");
+      }
+      deviceId = nombre.trim();
+
+      // Iniciar mapa por defecto
+      initMap();
+
+      // Envío automático cada 5 segundos
+      obtenerUbicacion(); // Primera llamada
+      setInterval(obtenerUbicacion, 5000);
+    };
+
+    function initMap(lat = -12.0464, lng = -77.0428) {
       const location = { lat, lng };
       map = new google.maps.Map(document.getElementById("map"), {
         zoom: 15,
@@ -47,11 +65,13 @@
 
     function actualizarMapa(lat, lng) {
       const location = { lat, lng };
-      map.setCenter(location);
-      marker.setPosition(location);
+      if (map && marker) {
+        map.setCenter(location);
+        marker.setPosition(location);
+      }
     }
 
-    function obtenerUbicacion() {
+    async function obtenerUbicacion() {
       const divUbicacion = document.getElementById("ubicacion");
       const divDetalles = document.getElementById("detalles");
 
@@ -63,6 +83,32 @@
 
           actualizarMapa(lat, lon);
 
+          // Enviar al servidor
+          try {
+            const response = await fetch('https://myproyect-4e59827b8cd6.herokuapp.com/location', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                deviceId: deviceId,
+                lat: lat,
+                lng: lon,
+                timestamp: new Date().toISOString()
+              }),
+            });
+
+            if (!response.ok) {
+              throw new Error(`Error ${response.status}: ${response.statusText}`);
+            }
+
+            const result = await response.json();
+            console.log("Ubicación enviada al servidor:", result);
+          } catch (error) {
+            console.error("❌ Error al enviar ubicación:", error);
+          }
+
+          // Obtener ciudad, región, país, etc.
           const geoUrl = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lon}&key=${apiKey}`;
           const timeUrl = `https://maps.googleapis.com/maps/api/timezone/json?location=${lat},${lon}&timestamp=${Math.floor(Date.now() / 1000)}&key=${apiKey}`;
 
@@ -97,7 +143,7 @@
               <strong>Org:</strong> No disponible con GPS (solo con IP)
             `;
           } catch (error) {
-            divDetalles.innerHTML = "❌ Error al obtener detalles.";
+            divDetalles.innerHTML = "❌ Error al obtener detalles geográficos.";
             console.error(error);
           }
         }, () => {
@@ -109,7 +155,7 @@
     }
   </script>
 
-  <!-- Cargar Google Maps JavaScript API -->
+  <!-- Google Maps JavaScript API -->
   <script async defer
     src="https://maps.googleapis.com/maps/api/js?key=AIzaSyA3xxcUJemA2HcEOSFfP3E0RQXSUf59zmI&callback=initMap">
   </script>
