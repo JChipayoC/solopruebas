@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Ubicación en Mapa</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      text-align: center;
+      padding: 20px;
+    }
+    #ubicacion, #detalles {
+      margin-top: 20px;
+      font-size: 18px;
+    }
+    #map {
+      height: 400px;
+      width: 100%;
+      margin-top: 30px;
+      border: 2px solid #ccc;
+    }
+  </style>
+</head>
+<body>
+  <h1>Tu ubicación actual</h1>
+  <button onclick="obtenerUbicacion()">Obtener ubicación</button>
+  <div id="ubicacion"></div>
+  <div id="detalles"></div>
+  <div id="map"></div>
+
+  <script>
+    const apiKey = "AIzaSyA3xxcUJemA2HcEOSFfP3E0RQXSUf59zmI";
+    let map, marker;
+
+    function initMap(lat = 0, lng = 0) {
+      const location = { lat, lng };
+      map = new google.maps.Map(document.getElementById("map"), {
+        zoom: 15,
+        center: location,
+      });
+      marker = new google.maps.Marker({
+        position: location,
+        map: map,
+        title: "Tu ubicación",
+      });
+    }
+
+    function actualizarMapa(lat, lng) {
+      const location = { lat, lng };
+      map.setCenter(location);
+      marker.setPosition(location);
+    }
+
+    function obtenerUbicacion() {
+      const divUbicacion = document.getElementById("ubicacion");
+      const divDetalles = document.getElementById("detalles");
+
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(async (position) => {
+          const lat = position.coords.latitude;
+          const lon = position.coords.longitude;
+          divUbicacion.innerHTML = `Latitud: ${lat.toFixed(6)}<br>Longitud: ${lon.toFixed(6)}`;
+
+          actualizarMapa(lat, lon);
+
+          const geoUrl = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lon}&key=${apiKey}`;
+          const timeUrl = `https://maps.googleapis.com/maps/api/timezone/json?location=${lat},${lon}&timestamp=${Math.floor(Date.now() / 1000)}&key=${apiKey}`;
+
+          try {
+            const [geoRes, timeRes] = await Promise.all([
+              fetch(geoUrl),
+              fetch(timeUrl)
+            ]);
+
+            const geoData = await geoRes.json();
+            const timeData = await timeRes.json();
+
+            let city = "", region = "", country = "", postal = "";
+
+            if (geoData.results.length > 0) {
+              for (const comp of geoData.results[0].address_components) {
+                if (comp.types.includes("locality")) city = comp.long_name;
+                if (comp.types.includes("administrative_area_level_1")) region = comp.long_name;
+                if (comp.types.includes("country")) country = comp.short_name;
+                if (comp.types.includes("postal_code")) postal = comp.long_name;
+              }
+            }
+
+            const timezone = timeData.timeZoneId || "Desconocida";
+
+            divDetalles.innerHTML = `
+              <strong>City:</strong> ${city || "No disponible"}<br>
+              <strong>Region:</strong> ${region || "No disponible"}<br>
+              <strong>Country:</strong> ${country || "No disponible"}<br>
+              <strong>Postal:</strong> ${postal || "No disponible"}<br>
+              <strong>Timezone:</strong> ${timezone}<br>
+              <strong>Org:</strong> No disponible con GPS (solo con IP)
+            `;
+          } catch (error) {
+            divDetalles.innerHTML = "❌ Error al obtener detalles.";
+            console.error(error);
+          }
+        }, () => {
+          divUbicacion.innerHTML = "❌ No se pudo obtener la ubicación del navegador.";
+        });
+      } else {
+        divUbicacion.innerHTML = "⚠️ Tu navegador no soporta geolocalización.";
+      }
+    }
+  </script>
+
+  <!-- Cargar Google Maps JavaScript API -->
+  <script async defer
+    src="https://maps.googleapis.com/maps/api/js?key=AIzaSyA3xxcUJemA2HcEOSFfP3E0RQXSUf59zmI&callback=initMap">
+  </script>
+</body>
+</html>
